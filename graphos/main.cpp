@@ -13,7 +13,7 @@ int main()
   // int n;
   // cin >> n;
   // int u, v, w;
-  vector<vector<int>> data = {{1, 2, 4}, {2, 3, 5}, {1, 3, 6}};
+  vector<vector<int>> data = {{1, 2, 1}, {2, 3, 5}, {1, 3, 3}};
 
   // for (int i = 0; i < n; i++)
   // {
@@ -30,7 +30,10 @@ int main()
 
   GraphProcessing gp;
 
-  gp.bfs(omixpp, 1);
+  // gp.bfs(omixpp, 1);
+  // gp.dfs(omixpp, 1);
+
+  gp.dijkstra(4, 3, omixpp, 1);
 
   return 0;
 }
