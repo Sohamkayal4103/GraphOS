@@ -1,0 +1,27 @@
+# Ignore object files, executables, and other build artifacts
+*.o
+*.out
+*.exe
+omixPP
+
+# Ignore static and shared libraries
+*.a
+*.so
+*.dylib
+
+# Ignore editor backup or temporary files
+*~
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Visual Studio Code settings
+.vscode/
+
+# CLion / JetBrains
+.idea/
+cmake-build-*/
+
+# Additional custom ignores...
