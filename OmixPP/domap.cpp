@@ -50,14 +50,14 @@ domap::domap(vector<vector<int>> &givenKeyValues, int Z)
     }
   }
   mainStash = stash(rootHeight);
-  cout << "Root height: " << rootHeight << endl;
+  ////cout << "Root height: " << rootHeight << endl;
   this->initialize();
 }
 
 void domap::initialize()
 {
-  cout << "Initializing the tree" << endl;
-  cout << "Root height: " << rootHeight << endl;
+  ////cout << "Initializing the tree" << endl;
+  ////cout << "Root height: " << rootHeight << endl;
   // iterate through and create a vector of nodes
   vector<node> tempNodes;
   for (auto it = keyValues.begin(); it != keyValues.end(); it++)
@@ -72,21 +72,21 @@ void domap::initialize()
     return a.key < b.key;
   };
   h.bitonicSort(tempNodes, 0, static_cast<int>(tempNodes.size()), true, cmpKey);
-  // cout << "sorted nodes: ";
+  // ////cout << "sorted nodes: ";
   // for (int i = 0; i < (int)tempNodes.size(); i++)
   // {
-  //   cout << tempNodes[i].key << " ";
+  //   ////cout << tempNodes[i].key << " ";
   // }
-  // cout << endl;
+  // ////cout << endl;
 
   // normal sort
   sort(tempNodes.begin(), tempNodes.end(), cmpKey);
-  // cout << "sorted nodes: ";
+  // ////cout << "sorted nodes: ";
   // for (int i = 0; i < (int)tempNodes.size(); i++)
   // {
-  //   cout << tempNodes[i].key << " ";
+  //   ////cout << tempNodes[i].key << " ";
   // }
-  // cout << endl;
+  // ////cout << endl;
 
   // create AVL tree
   pair<int, pair<int, string>> rootData = createAVLTree(0, (int)keyValues.size() - 1, tempNodes);
@@ -94,13 +94,13 @@ void domap::initialize()
   // rootHeight = rootData.first;
   rootPos = rootData.second.first;
   rootKey = rootData.second.second;
-  cout << "Root key: " << rootKey << endl;
-  cout << "Root pos: " << rootPos << endl;
-  cout << "Initialization complete" << endl;
+  ////cout << "Root key: " << rootKey << endl;
+  ////cout << "Root pos: " << rootPos << endl;
+  ////cout << "Initialization complete" << endl;
 
   initialEviction();
 
-  cout << endl;
+  ////cout << endl;
 }
 
 pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &tempNodes)
@@ -133,7 +133,7 @@ pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &te
     //   {
     //     // insert the node in the bucket
     //     // just for debugging
-    //     // cout << "Inserting node with key: " << tempNodes[l].key << " at pos: " << pos << endl;
+    //     // ////cout << "Inserting node with key: " << tempNodes[l].key << " at pos: " << pos << endl;
     //     buckets[pos][i] = tempNodes[l];
     //     break;
     //   }
@@ -166,7 +166,7 @@ pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &te
     {
       // insert the node in the bucket
       // just for debugging
-      // cout << "Insertiing node with key: " << tempNodes[mid].key << " at pos: " << pos << endl;
+      // ////cout << "Insertiing node with key: " << tempNodes[mid].key << " at pos: " << pos << endl;
       buckets[pos][i] = tempNodes[mid];
       break;
     }
@@ -220,7 +220,7 @@ node domap::evictStash(string &key, string &currKey, int newPos, int currPos, in
       }
       // find intersecting bucket between currPos and newPos
       int intersectingBucket = findIntersectingBucket(currPos, newPos);
-      // cout << "node: " << mainStash.nodes[i].key << " currPos " << currPos << " newPos: " << newPos << " intersectingBucket: " << intersectingBucket << endl;
+      // ////cout << "node: " << mainStash.nodes[i].key << " currPos " << currPos << " newPos: " << newPos << " intersectingBucket: " << intersectingBucket << endl;
       mainStash.nodes[i].pos = newPos;
       mainStash.nodes[i].level = log2(intersectingBucket);
       retNode = mainStash.nodes[i];
@@ -230,12 +230,12 @@ node domap::evictStash(string &key, string &currKey, int newPos, int currPos, in
       // find intersecting bucket between currPos and newPos
       int currNodePos = mainStash.nodes[i].pos;
       int intersectingBucket = findIntersectingBucket(currNodePos, currPos);
-      // cout << "node: " << mainStash.nodes[i].key << " currNodePos " << currNodePos << " newPos: " << currPos << " intersectingBucket: " << intersectingBucket << endl;
+      // ////cout << "node: " << mainStash.nodes[i].key << " currNodePos " << currNodePos << " newPos: " << currPos << " intersectingBucket: " << intersectingBucket << endl;
       mainStash.nodes[i].pos = newPos;
       mainStash.nodes[i].level = log2(intersectingBucket);
     }
   }
-  // cout << endl;
+  // ////cout << endl;
 
   // sort by levels
   auto cmpLevel = [](const node &a, const node &b) -> bool
@@ -243,25 +243,25 @@ node domap::evictStash(string &key, string &currKey, int newPos, int currPos, in
     return a.level > b.level;
   };
   sort(mainStash.nodes.begin(), mainStash.nodes.end(), cmpLevel);
-  // cout << "sorted stash: ";
+  // ////cout << "sorted stash: ";
   // for (int i = 0; i < (int)mainStash.nodes.size(); i++)
   // {
-  //   cout << mainStash.nodes[i].key << " ";
+  //   ////cout << mainStash.nodes[i].key << " ";
   // }
-  // cout << endl;
+  // ////cout << endl;
   // start from bucketId = currPos
   int bucketId = currPos;
   int currLevel = log2(bucketId);
   int p1 = 0;
-  // cout << "Now inserting in the tree" << endl;
+  // ////cout << "Now inserting in the tree" << endl;
   while (bucketId > 0)
   {
-    // cout << bucketId << " ";
+    // ////cout << bucketId << " ";
     // set the bucketId and sort again based on bucketId
     currLevel = log2(bucketId);
     if (p1 < (int)mainStash.nodes.size() && currLevel <= mainStash.nodes[p1].level)
     {
-      // cout << "followed this" << endl;
+      // ////cout << "followed this" << endl;
       for (int i = 0; i < Z; i++)
       {
         if (buckets[bucketId][i].isDummy)
@@ -290,29 +290,29 @@ node domap::evictStash(string &key, string &currKey, int newPos, int currPos, in
 
 node domap::access(string &key, string &currKey, int bucketId, int newPos, int op, pair<int, int> newVal)
 {
-  cout << "Accessing key: " << currKey << " to reach " << key << " at pos " << bucketId << endl;
+  ////cout << "Accessing key: " << currKey << " to reach " << key << " at pos " << bucketId << endl;
   // if (ct > 20)
   // {
-  //   cout << "returning dummy for now" << endl;
+  //   ////cout << "returning dummy for now" << endl;
   //   return node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1);
   // }
   // just for debugging
-  // cout << "Accessing key: " << currKey << " from bucket: " << bucketId << endl;
+  // ////cout << "Accessing key: " << currKey << " from bucket: " << bucketId << endl;
 
   // fetch the path
-  // cout << "Size of stash: " << mainStash.nodes.size() << endl;
+  // ////cout << "Size of stash: " << mainStash.nodes.size() << endl;
   fetchPath(bucketId);
   node currNode = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
-  // cout << "State of the stash:" << endl;
+  // ////cout << "State of the stash:" << endl;
   for (int i = 0; i < (int)mainStash.nodes.size(); i++)
   {
-    // cout << "node key: " << mainStash.nodes[i].key << " pos: " << mainStash.nodes[i].pos << endl;
+    // ////cout << "node key: " << mainStash.nodes[i].key << " pos: " << mainStash.nodes[i].pos << endl;
     if (mainStash.nodes[i].key == currKey)
     {
       currNode = mainStash.nodes[i];
     }
   }
-  // cout << "End of state of the stash" << endl;
+  // ////cout << "End of state of the stash" << endl;
 
   // generate new Position between 2^h and 2^(h+1) - 1
   helper h = helper();
@@ -320,42 +320,42 @@ node domap::access(string &key, string &currKey, int bucketId, int newPos, int o
 
   // evict the stash
   node tempNode = evictStash(key, currKey, newPos, bucketId, op, newVal);
-  // cout << "tempNode.key: " << tempNode.key << endl;
+  // ////cout << "tempNode.key: " << tempNode.key << endl;
 
   node updatedChildNode;
   // decide whether to go left or right or return from here
-  // cout << "Current node key: " << currNode.key << " " << currKey << endl;
+  // ////cout << "Current node key: " << currNode.key << " " << currKey << endl;
   if (currNode.key == "-1")
   {
-    // cout << "Node not found" << endl;
+    // ////cout << "Node not found" << endl;
     // just for debugging
-    // cout << "Returning dummy node" << endl;
-    cout << "Printing Stash for debugging" << endl;
-    cout << "Element looking for: " << currKey << " to finally find " << key << endl;
+    // ////cout << "Returning dummy node" << endl;
+    ////cout << "Printing Stash for debugging" << endl;
+    ////cout << "Element looking for: " << currKey << " to finally find " << key << endl;
     for (int i = 0; i < (int)mainStash.nodes.size(); i++)
     {
-      cout << "Node: " << mainStash.nodes[i].key << endl;
+      ////cout << "Node: " << mainStash.nodes[i].key << endl;
     }
-    cout << "End of stash" << endl;
-    cout << "Returning dummy node" << endl;
+    ////cout << "End of stash" << endl;
+    ////cout << "Returning dummy node" << endl;
     return currNode;
   }
   else if (currNode.key == key && currNode.isDummy == 0)
   {
-    // cout << "Node found" << endl;
-    // cout << "Returning node" << " " << tempNode.key << " " << tempNode.pos << " " << tempNode.value.first << "," << tempNode.value.second << endl;
-    cout << "And found the node: " << currNode.key << endl;
+    // ////cout << "Node found" << endl;
+    // ////cout << "Returning node" << " " << tempNode.key << " " << tempNode.pos << " " << tempNode.value.first << "," << tempNode.value.second << endl;
+    ////cout << "And found the node: " << currNode.key << endl;
     return currNode;
   }
   else if (currNode.key < key && currNode.rightKey != "-1")
   {
-    // cout << "Going right" << endl;
+    // ////cout << "Going right" << endl;
     updatedChildNode = access(key, currNode.rightKey, currNode.rightPos, newPosChild, op, newVal);
     currNode.rightPos = newPosChild;
   }
   else if (currNode.key > key && currNode.leftKey != "-1")
   {
-    // cout << "Going left" << endl;
+    // ////cout << "Going left" << endl;
     updatedChildNode = access(key, currNode.leftKey, currNode.leftPos, newPosChild, op, newVal);
     currNode.leftPos = newPosChild;
   }
@@ -366,22 +366,22 @@ pair<int, int> domap::accessNode(string &key, int op, pair<int, int> newVal)
 {
   helper h = helper();
   int newPos = h.generateRandomNumber(pow(2, rootHeight - 1), pow(2, rootHeight) - 1);
-  cout << "Access trace begins" << endl;
+  // ////cout << "Access trace begins" << endl;
   node ansNode = access(key, rootKey, rootPos, newPos, op, newVal);
   rootPos = newPos;
-  cout << "Access trace ends" << endl;
-  cout << endl;
-  // cout << "new root key: " << rootKey << endl;
-  // cout << "new root pos: " << rootPos << endl;
+  // ////cout << "Access trace ends" << endl;
+  // ////cout << endl;
+  // ////cout << "new root key: " << rootKey << endl;
+  // ////cout << "new root pos: " << rootPos << endl;
 
-  // cout << endl;
-  // cout << endl;
-  // cout << endl;
-  // cout << endl;
+  // ////cout << endl;
+  // ////cout << endl;
+  // ////cout << endl;
+  // ////cout << endl;
   // printState();
-  // cout << endl;
-  // cout << endl;
-  // cout << endl;
+  // ////cout << endl;
+  // ////cout << endl;
+  // ////cout << endl;
 
   return ansNode.value;
 }
@@ -389,21 +389,21 @@ pair<int, int> domap::accessNode(string &key, int op, pair<int, int> newVal)
 // just for debugging
 void domap::printState()
 {
-  cout << "State of the tree:" << endl;
+  // ////cout << "State of the tree:" << endl;
   for (int i = 0; i < (int)buckets.size(); i++)
   {
-    cout << "Bucket: " << i << endl;
+    // ////cout << "Bucket: " << i << endl;
     for (int j = 0; j < Z; j++)
     {
       if (buckets[i][j].isDummy)
         continue;
-      cout << "Node: " << j << endl;
+      // ////cout << "Node: " << j << endl;
       buckets[i][j].printNode();
-      cout << endl;
+      ////cout << endl;
     }
-    cout << endl;
+    // ////cout << endl;
   }
-  cout << "End of state of the tree" << endl;
+  //////cout << "End of state of the tree" << endl;
 }
 
 void domap::addEdge(int u, int v, int w)
@@ -443,7 +443,7 @@ void domap::addEdge(int u, int v, int w)
     }
   }
   mainStash = stash(rootHeight);
-  cout << "Root height: " << rootHeight << endl;
+  ////cout << "Root height: " << rootHeight << endl;
   this->initialize();
 }
 
@@ -470,7 +470,7 @@ void domap::addEdgeByString(string k1, pair<int, int> val)
     }
   }
   mainStash = stash(rootHeight);
-  cout << "Root height: " << rootHeight << endl;
+  ////cout << "Root height: " << rootHeight << endl;
   this->initialize();
 }
 
@@ -497,7 +497,7 @@ void domap::initialEviction()
           buckets[bucketId][j] = mainStash.nodes[i];
           buckets[bucketId][j].level = log2(bucketId);
           // mainStash.nodes[i] = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
-          cout << "Placed node: " << mainStash.nodes[i].key << " at bucketId: " << bucketId << endl;
+          ////cout << "Placed node: " << mainStash.nodes[i].key << " at bucketId: " << bucketId << endl;
           placed = 1;
           break;
         }
@@ -508,12 +508,12 @@ void domap::initialEviction()
         bucketId /= 2;
         if (bucketId == 0)
         {
-          cout << "Not able to place node: " << mainStash.nodes[i].key << endl;
+          ////cout << "Not able to place node: " << mainStash.nodes[i].key << endl;
         }
       }
     }
   }
   mainStash.nodes.clear();
   mainStash.nodes.resize(0);
-  cout << "Initial eviction complete" << endl;
+  ////cout << "Initial eviction complete" << endl;
 }

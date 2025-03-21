@@ -1,0 +1,6 @@
+Graph,Nodes,Edges,Init_Time_us,BFS_Time_us,DFS_Time_us,Dijkstra_Time_us
+../graphGenerator/graph_100,100,97,22301,68445,138377,5941666
+../graphGenerator/graph_200,200,188,43699,147468,148935,33424195
+../graphGenerator/graph_300,299,270,65667,227926,235189,86374005
+../graphGenerator/graph_400,400,380,177075,299911,296910,178591694
+../graphGenerator/graph_500,500,492,215748,19273470,21470797,388004842

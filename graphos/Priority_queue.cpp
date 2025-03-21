@@ -9,15 +9,15 @@ void Priority_queue::insert(pair<int, int> &data)
 
 pair<int, int> Priority_queue::extract_min()
 {
-  cout << "Extracting min" << endl;
+  // cout << "Extracting min" << endl;
   if (pq.empty())
   {
-    cout << "Priority queue is empty" << endl;
+    // cout << "Priority queue is empty" << endl;
     return {-1, -1};
   }
   pair<int, int> top = pq.top();
-  cout << "Top: " << top.first << " " << top.second << endl;
-  cout << "----------------" << endl;
+  // cout << "Top: " << top.first << " " << top.second << endl;
+  // cout << "----------------" << endl;
   pq.pop();
   return top;
 }
@@ -28,7 +28,7 @@ void Priority_queue::print()
   while (!pq.empty())
   {
     pair<int, int> top = pq.top();
-    cout << top.first << " " << top.second << endl;
+    // cout << top.first << " " << top.second << endl;
     pq.pop();
   }
   for (int i = 0; i < v.size(); i++)
