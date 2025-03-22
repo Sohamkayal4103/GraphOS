@@ -3,13 +3,118 @@
 #include <unordered_map>
 #include "helper.h"
 #include <iostream>
-using namespace std;
+#include <cmath>
+#include <sstream>
 
-class stash;
+// Boost Serialization headers
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+
+// Crypto++ headers
+#include <cryptopp/aes.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/filters.h>
+#include <cryptopp/osrng.h>
+#include <cryptopp/secblock.h>
+
+using namespace std;
+using namespace CryptoPP;
+
+namespace
+{
+  // --- Global Crypto Setup and Helper Functions ---
+
+  // Global key and IV (for demonstration; in practice, manage these securely)
+  SecByteBlock globalKey(AES::DEFAULT_KEYLENGTH);
+  SecByteBlock globalIV(AES::BLOCKSIZE);
+
+  void initializeCrypto()
+  {
+    AutoSeededRandomPool prng;
+    prng.GenerateBlock(globalKey, globalKey.size());
+    prng.GenerateBlock(globalIV, globalIV.size());
+  }
+
+  // Serializes and encrypts a node
+  string encryptAndSerialize(const node &n)
+  {
+    stringstream ss;
+    boost::archive::text_oarchive oa(ss);
+    oa << n;
+    string plainText = ss.str();
+
+    string cipherText;
+    try
+    {
+      CBC_Mode<AES>::Encryption encryption;
+      encryption.SetKeyWithIV(globalKey, globalKey.size(), globalIV, globalIV.size());
+      StringSource(plainText, true,
+                   new StreamTransformationFilter(encryption,
+                                                  new StringSink(cipherText)));
+    }
+    catch (const Exception &e)
+    {
+      cerr << "Encryption error: " << e.what() << endl;
+    }
+    return cipherText;
+  }
+
+  // Decrypts and deserializes a node
+  node decryptAndDeserialize(const string &cipherText)
+  {
+    string recovered;
+    try
+    {
+      CBC_Mode<AES>::Decryption decryption;
+      decryption.SetKeyWithIV(globalKey, globalKey.size(), globalIV, globalIV.size());
+      StringSource(cipherText, true,
+                   new StreamTransformationFilter(decryption,
+                                                  new StringSink(recovered)));
+    }
+    catch (const Exception &e)
+    {
+      cerr << "Decryption error: " << e.what() << endl;
+    }
+    node n;
+    stringstream ss(recovered);
+    boost::archive::text_iarchive ia(ss);
+    ia >> n;
+    return n;
+  }
+
+  // Returns the encrypted form of a dummy node (dummy: key "-1" and isDummy==1)
+  string getEncryptedDummy()
+  {
+    node dummy("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
+    return encryptAndSerialize(dummy);
+  }
+
+  // For checking if a bucket slot is empty (dummy) without decryption
+  static string encryptedDummy = getEncryptedDummy();
+
+  // Helper function to compute the intersecting bucket of two positions.
+  int findIntersectingBucket(int currBucketId, int newBucketId)
+  {
+    int currBucketIdCopy = currBucketId;
+    int newBucketIdCopy = newBucketId;
+    while (currBucketIdCopy != newBucketIdCopy)
+    {
+      currBucketIdCopy /= 2;
+      newBucketIdCopy /= 2;
+    }
+    return max(currBucketIdCopy, 1);
+  }
+
+} // end anonymous namespace
+
+// --- domap Member Function Implementations ---
 
 domap::domap(vector<vector<int>> &givenKeyValues, int Z)
 {
+  // Initialize the crypto materials.
+  initializeCrypto();
   this->Z = Z;
+  // Process given key–values and update the mapping.
   for (int i = 0; i < (int)givenKeyValues.size(); i++)
   {
     int u = givenKeyValues[i][0];
@@ -30,77 +135,54 @@ domap::domap(vector<vector<int>> &givenKeyValues, int Z)
     keyValues[k3] = {v, w};
     keyValues[k4] = {u, w};
   }
-  // set treeHeight and N
+  // Set tree height and number of leaves.
   rootHeight = ceil(log2(keyValues.size()));
   int N = 1;
   while (N < (int)keyValues.size())
     N *= 2;
   numLeaves = N;
+  // Resize buckets (each bucket holds encrypted nodes)
   buckets.resize(pow(2, rootHeight));
   for (int i = 0; i < (int)buckets.size(); i++)
   {
     buckets[i].resize(Z);
   }
+  // Fill all slots with the encrypted dummy node.
   for (int i = 0; i < (int)buckets.size(); i++)
   {
     for (int j = 0; j < Z; j++)
     {
-      // fill all the slots with dummy nodes
-      buckets[i][j] = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
+      buckets[i][j] = encryptedDummy;
     }
   }
   mainStash = stash(rootHeight);
-  ////cout << "Root height: " << rootHeight << endl;
   this->initialize();
 }
 
 void domap::initialize()
 {
-  ////cout << "Initializing the tree" << endl;
-  ////cout << "Root height: " << rootHeight << endl;
-  // iterate through and create a vector of nodes
+  // Create a vector of plaintext nodes from keyValues.
   vector<node> tempNodes;
   for (auto it = keyValues.begin(); it != keyValues.end(); it++)
   {
     tempNodes.push_back(node(it->first, it->second, 0, 0, 0, "-1", "-1", -1, -1, -1, 0, 0));
   }
 
-  // sort the nodes
-  helper h = helper();
+  // Sort the nodes.
+  helper h;
   auto cmpKey = [](const node &a, const node &b) -> bool
-  {
-    return a.key < b.key;
-  };
+  { return a.key < b.key; };
   h.bitonicSort(tempNodes, 0, static_cast<int>(tempNodes.size()), true, cmpKey);
-  // ////cout << "sorted nodes: ";
-  // for (int i = 0; i < (int)tempNodes.size(); i++)
-  // {
-  //   ////cout << tempNodes[i].key << " ";
-  // }
-  // ////cout << endl;
-
-  // normal sort
   sort(tempNodes.begin(), tempNodes.end(), cmpKey);
-  // ////cout << "sorted nodes: ";
-  // for (int i = 0; i < (int)tempNodes.size(); i++)
-  // {
-  //   ////cout << tempNodes[i].key << " ";
-  // }
-  // ////cout << endl;
 
-  // create AVL tree
+  // Create the AVL tree; note that for nodes that are inserted into buckets,
+  // we do NOT decrypt the bucket—they are written in encrypted form.
   pair<int, pair<int, string>> rootData = createAVLTree(0, (int)keyValues.size() - 1, tempNodes);
-
-  // rootHeight = rootData.first;
   rootPos = rootData.second.first;
   rootKey = rootData.second.second;
-  ////cout << "Root key: " << rootKey << endl;
-  ////cout << "Root pos: " << rootPos << endl;
-  ////cout << "Initialization complete" << endl;
 
+  // After building the tree (or parts of it), perform an initial eviction from the stash.
   initialEviction();
-
-  ////cout << endl;
 }
 
 pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &tempNodes)
@@ -112,11 +194,10 @@ pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &te
   }
   if (n == 1)
   {
-    // generate random position for the node
-    helper h = helper();
+    helper h;
     int pos = h.generateRandomNumber(pow(2, rootHeight - 1), pow(2, rootHeight) - 1);
 
-    // setting data for the node
+    // Set node parameters.
     tempNodes[l].pos = pos;
     tempNodes[l].height = 0;
     tempNodes[l].leftPos = -1;
@@ -127,18 +208,7 @@ pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &te
     tempNodes[l].leftHeight = -1;
     tempNodes[l].rightHeight = -1;
 
-    // for (int i = 0; i < Z; i++)
-    // {
-    //   if (buckets[pos][i].isDummy)
-    //   {
-    //     // insert the node in the bucket
-    //     // just for debugging
-    //     // ////cout << "Inserting node with key: " << tempNodes[l].key << " at pos: " << pos << endl;
-    //     buckets[pos][i] = tempNodes[l];
-    //     break;
-    //   }
-    // }
-    // instead of inserting it in the tree store it in stash
+    // Instead of inserting directly into the tree bucket, store it in the stash.
     mainStash.nodes.push_back(tempNodes[l]);
     return {0, {tempNodes[l].pos, tempNodes[l].key}};
   }
@@ -149,29 +219,27 @@ pair<int, pair<int, string>> domap::createAVLTree(int l, int r, vector<node> &te
   int rightHeight = rightData.first;
   int height = max(leftHeight, rightHeight) + 1;
 
-  // setting data for the node
+  // Set current node's parameters.
   tempNodes[mid].height = height;
   tempNodes[mid].leftPos = leftData.second.first;
   tempNodes[mid].rightPos = rightData.second.first;
   tempNodes[mid].leftKey = leftData.second.second;
   tempNodes[mid].rightKey = rightData.second.second;
 
-  // generate random position for the node
-  helper h = helper();
+  helper h;
   int pos = h.generateRandomNumber(pow(2, rootHeight - 1), pow(2, rootHeight) - 1);
   tempNodes[mid].pos = pos;
+  // Insert the node into the appropriate bucket.
+  // Since buckets store encrypted strings, we check for an available slot by comparing
+  // against the known encrypted dummy value (without decrypting).
   for (int i = 0; i < Z; i++)
   {
-    if (buckets[pos][i].isDummy)
+    if (buckets[pos][i] == encryptedDummy)
     {
-      // insert the node in the bucket
-      // just for debugging
-      // ////cout << "Insertiing node with key: " << tempNodes[mid].key << " at pos: " << pos << endl;
-      buckets[pos][i] = tempNodes[mid];
+      buckets[pos][i] = encryptAndSerialize(tempNodes[mid]);
       break;
     }
   }
-
   return {height, {tempNodes[mid].pos, tempNodes[mid].key}};
 }
 
@@ -181,92 +249,75 @@ void domap::fetchPath(int bucketId)
   {
     for (int i = 0; i < Z; i++)
     {
-      if (buckets[bucketId][i].isDummy)
+      // Check if the slot contains the dummy ciphertext.
+      if (buckets[bucketId][i] == encryptedDummy)
+      {
+        continue; // Skip decryption since this is a dummy node.
+      }
+
+      // Otherwise, decrypt and deserialize.
+      node fetched = decryptAndDeserialize(buckets[bucketId][i]);
+      if (fetched.isDummy)
+      {
+        // In case decryption returns a dummy node, ensure the slot is set back.
+        buckets[bucketId][i] = encryptedDummy;
         continue;
-      mainStash.nodes.push_back(buckets[bucketId][i]);
-      // replacing with dummy node
-      buckets[bucketId][i] = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
+      }
+
+      mainStash.nodes.push_back(fetched);
+      // Replace the bucket slot with the encrypted dummy value.
+      buckets[bucketId][i] = encryptedDummy;
     }
     bucketId /= 2;
   }
 }
 
-int findIntersectingBucket(int currBucketId, int newBucketId)
-{
-  int currBucketIdCopy = currBucketId;
-  int newBucketIdCopy = newBucketId;
-  while (currBucketIdCopy != newBucketIdCopy)
-  {
-    currBucketIdCopy /= 2;
-    newBucketIdCopy /= 2;
-  }
-  return max(currBucketIdCopy, 1);
-}
-
 node domap::evictStash(string &key, string &currKey, int newPos, int currPos, int op, pair<int, int> newVal)
 {
-  node retNode = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
+  node retNode("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
   for (int i = 0; i < (int)mainStash.nodes.size(); i++)
   {
     if (mainStash.nodes[i].key == currKey)
     {
       if (currKey == key)
       {
-        // update the value for update operation
         if (op == 1)
-        {
           mainStash.nodes[i].value = newVal;
-        }
       }
-      // find intersecting bucket between currPos and newPos
       int intersectingBucket = findIntersectingBucket(currPos, newPos);
-      // ////cout << "node: " << mainStash.nodes[i].key << " currPos " << currPos << " newPos: " << newPos << " intersectingBucket: " << intersectingBucket << endl;
       mainStash.nodes[i].pos = newPos;
       mainStash.nodes[i].level = log2(intersectingBucket);
       retNode = mainStash.nodes[i];
     }
     else
     {
-      // find intersecting bucket between currPos and newPos
       int currNodePos = mainStash.nodes[i].pos;
       int intersectingBucket = findIntersectingBucket(currNodePos, currPos);
-      // ////cout << "node: " << mainStash.nodes[i].key << " currNodePos " << currNodePos << " newPos: " << currPos << " intersectingBucket: " << intersectingBucket << endl;
       mainStash.nodes[i].pos = newPos;
       mainStash.nodes[i].level = log2(intersectingBucket);
     }
   }
-  // ////cout << endl;
-
-  // sort by levels
   auto cmpLevel = [](const node &a, const node &b) -> bool
   {
     return a.level > b.level;
   };
+  helper h;
+  h.bitonicSort(mainStash.nodes, 0, static_cast<int>(mainStash.nodes.size()), true, cmpLevel);
   sort(mainStash.nodes.begin(), mainStash.nodes.end(), cmpLevel);
-  // ////cout << "sorted stash: ";
-  // for (int i = 0; i < (int)mainStash.nodes.size(); i++)
-  // {
-  //   ////cout << mainStash.nodes[i].key << " ";
-  // }
-  // ////cout << endl;
-  // start from bucketId = currPos
+
   int bucketId = currPos;
   int currLevel = log2(bucketId);
   int p1 = 0;
-  // ////cout << "Now inserting in the tree" << endl;
   while (bucketId > 0)
   {
-    // ////cout << bucketId << " ";
-    // set the bucketId and sort again based on bucketId
     currLevel = log2(bucketId);
     if (p1 < (int)mainStash.nodes.size() && currLevel <= mainStash.nodes[p1].level)
     {
-      // ////cout << "followed this" << endl;
       for (int i = 0; i < Z; i++)
       {
-        if (buckets[bucketId][i].isDummy)
+        if (buckets[bucketId][i] == encryptedDummy)
         {
-          buckets[bucketId][i] = mainStash.nodes[p1];
+          buckets[bucketId][i] = encryptAndSerialize(mainStash.nodes[p1]);
           p1++;
           break;
         }
@@ -281,81 +332,38 @@ node domap::evictStash(string &key, string &currKey, int newPos, int currPos, in
       bucketId /= 2;
     }
   }
-  // empty the stash
-  // mainStash.nodes.clear();
-  // make size 0
-  // mainStash.nodes.resize(0);
   return retNode;
 }
 
 node domap::access(string &key, string &currKey, int bucketId, int newPos, int op, pair<int, int> newVal)
 {
-  ////cout << "Accessing key: " << currKey << " to reach " << key << " at pos " << bucketId << endl;
-  // if (ct > 20)
-  // {
-  //   ////cout << "returning dummy for now" << endl;
-  //   return node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1);
-  // }
-  // just for debugging
-  // ////cout << "Accessing key: " << currKey << " from bucket: " << bucketId << endl;
-
-  // fetch the path
-  // ////cout << "Size of stash: " << mainStash.nodes.size() << endl;
+  // Fetch the full path into the stash (decryption happens in the stash only)
   fetchPath(bucketId);
-  node currNode = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
-  // ////cout << "State of the stash:" << endl;
+  node currNode("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
   for (int i = 0; i < (int)mainStash.nodes.size(); i++)
   {
-    // ////cout << "node key: " << mainStash.nodes[i].key << " pos: " << mainStash.nodes[i].pos << endl;
     if (mainStash.nodes[i].key == currKey)
-    {
       currNode = mainStash.nodes[i];
-    }
   }
-  // ////cout << "End of state of the stash" << endl;
-
-  // generate new Position between 2^h and 2^(h+1) - 1
-  helper h = helper();
+  helper h;
   int newPosChild = h.generateRandomNumber(pow(2, rootHeight - 1), pow(2, rootHeight) - 1);
-
-  // evict the stash
   node tempNode = evictStash(key, currKey, newPos, bucketId, op, newVal);
-  // ////cout << "tempNode.key: " << tempNode.key << endl;
-
   node updatedChildNode;
-  // decide whether to go left or right or return from here
-  // ////cout << "Current node key: " << currNode.key << " " << currKey << endl;
   if (currNode.key == "-1")
   {
-    // ////cout << "Node not found" << endl;
-    // just for debugging
-    // ////cout << "Returning dummy node" << endl;
-    ////cout << "Printing Stash for debugging" << endl;
-    ////cout << "Element looking for: " << currKey << " to finally find " << key << endl;
-    for (int i = 0; i < (int)mainStash.nodes.size(); i++)
-    {
-      ////cout << "Node: " << mainStash.nodes[i].key << endl;
-    }
-    ////cout << "End of stash" << endl;
-    ////cout << "Returning dummy node" << endl;
     return currNode;
   }
   else if (currNode.key == key && currNode.isDummy == 0)
   {
-    // ////cout << "Node found" << endl;
-    // ////cout << "Returning node" << " " << tempNode.key << " " << tempNode.pos << " " << tempNode.value.first << "," << tempNode.value.second << endl;
-    ////cout << "And found the node: " << currNode.key << endl;
     return currNode;
   }
   else if (currNode.key < key && currNode.rightKey != "-1")
   {
-    // ////cout << "Going right" << endl;
     updatedChildNode = access(key, currNode.rightKey, currNode.rightPos, newPosChild, op, newVal);
     currNode.rightPos = newPosChild;
   }
   else if (currNode.key > key && currNode.leftKey != "-1")
   {
-    // ////cout << "Going left" << endl;
     updatedChildNode = access(key, currNode.leftKey, currNode.leftPos, newPosChild, op, newVal);
     currNode.leftPos = newPosChild;
   }
@@ -364,52 +372,36 @@ node domap::access(string &key, string &currKey, int bucketId, int newPos, int o
 
 pair<int, int> domap::accessNode(string &key, int op, pair<int, int> newVal)
 {
-  helper h = helper();
+  helper h;
   int newPos = h.generateRandomNumber(pow(2, rootHeight - 1), pow(2, rootHeight) - 1);
-  // ////cout << "Access trace begins" << endl;
   node ansNode = access(key, rootKey, rootPos, newPos, op, newVal);
   rootPos = newPos;
-  // ////cout << "Access trace ends" << endl;
-  // ////cout << endl;
-  // ////cout << "new root key: " << rootKey << endl;
-  // ////cout << "new root pos: " << rootPos << endl;
-
-  // ////cout << endl;
-  // ////cout << endl;
-  // ////cout << endl;
-  // ////cout << endl;
-  // printState();
-  // ////cout << endl;
-  // ////cout << endl;
-  // ////cout << endl;
-
   return ansNode.value;
 }
 
-// just for debugging
 void domap::printState()
 {
-  // ////cout << "State of the tree:" << endl;
+  // For debugging, we avoid decrypting buckets here (per the criteria decryption happens in the stash).
+  // We simply indicate which buckets hold non-dummy (encrypted) data.
+  cout << "State of the tree (bucket-level):" << endl;
   for (int i = 0; i < (int)buckets.size(); i++)
   {
-    // ////cout << "Bucket: " << i << endl;
     for (int j = 0; j < Z; j++)
     {
-      if (buckets[i][j].isDummy)
-        continue;
-      // ////cout << "Node: " << j << endl;
-      buckets[i][j].printNode();
-      ////cout << endl;
+      if (buckets[i][j] != encryptedDummy)
+        cout << "Bucket " << i << ", Slot " << j << " contains an encrypted node." << endl;
     }
-    // ////cout << endl;
   }
-  //////cout << "End of state of the tree" << endl;
+  cout << "\nStash contents:" << endl;
+  for (auto &n : mainStash.nodes)
+  {
+    n.printNode();
+    cout << endl;
+  }
 }
 
 void domap::addEdge(int u, int v, int w)
 {
-  // add edge to the graph
-
   string k1 = "V" + to_string(u);
   string k2 = "V" + to_string(v);
   if (keyValues.find(k1) == keyValues.end())
@@ -423,7 +415,6 @@ void domap::addEdge(int u, int v, int w)
   keyValues[k3] = {v, w};
   keyValues[k4] = {u, w};
 
-  // update the tree
   rootHeight = ceil(log2(keyValues.size()));
   int N = 1;
   while (N < (int)keyValues.size())
@@ -438,12 +429,10 @@ void domap::addEdge(int u, int v, int w)
   {
     for (int j = 0; j < Z; j++)
     {
-      // fill all the slots with dummy nodes
-      buckets[i][j] = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
+      buckets[i][j] = encryptedDummy;
     }
   }
   mainStash = stash(rootHeight);
-  ////cout << "Root height: " << rootHeight << endl;
   this->initialize();
 }
 
@@ -451,7 +440,6 @@ void domap::addEdgeByString(string k1, pair<int, int> val)
 {
   keyValues[k1] = val;
 
-  // update the tree
   int N = 1;
   while (N < (int)keyValues.size())
     N *= 2;
@@ -465,12 +453,10 @@ void domap::addEdgeByString(string k1, pair<int, int> val)
   {
     for (int j = 0; j < Z; j++)
     {
-      // fill all the slots with dummy nodes
-      buckets[i][j] = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
+      buckets[i][j] = encryptedDummy;
     }
   }
   mainStash = stash(rootHeight);
-  ////cout << "Root height: " << rootHeight << endl;
   this->initialize();
 }
 
@@ -492,28 +478,27 @@ void domap::initialEviction()
     {
       for (int j = 0; j < Z; j++)
       {
-        if (buckets[bucketId][j].isDummy)
+        if (buckets[bucketId][j] == encryptedDummy)
         {
-          buckets[bucketId][j] = mainStash.nodes[i];
-          buckets[bucketId][j].level = log2(bucketId);
-          // mainStash.nodes[i] = node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
-          ////cout << "Placed node: " << mainStash.nodes[i].key << " at bucketId: " << bucketId << endl;
+          node tmp = mainStash.nodes[i];
+          tmp.level = log2(bucketId);
+          buckets[bucketId][j] = encryptAndSerialize(tmp);
           placed = 1;
           break;
         }
       }
       if (placed == 0)
       {
-        // move to parent bucket
         bucketId /= 2;
-        if (bucketId == 0)
-        {
-          ////cout << "Not able to place node: " << mainStash.nodes[i].key << endl;
-        }
       }
     }
   }
   mainStash.nodes.clear();
   mainStash.nodes.resize(0);
-  ////cout << "Initial eviction complete" << endl;
+}
+
+node domap::naiveEviction(string &key, string &currKey, int newPos, int currPos, int op, pair<int, int> newVal)
+{
+  // For simplicity, return a dummy node.
+  return node("-1", {0, 0}, 0, 0, 0, "-1", "-1", -1, -1, -1, 1, 0);
 }

@@ -1,14 +1,20 @@
-#pragma once
+#ifndef NODE_H
+#define NODE_H
+
 #include <iostream>
-#include <vector>
+#include <string>
 #include <utility>
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/utility.hpp>
+
 using namespace std;
 
 class node
 {
 public:
-  string key;           //
-  pair<int, int> value; //
+  string key;           // Node key
+  pair<int, int> value; // Value pair
   int height;           //
   int leftHeight;       //
   int rightHeight;      //
@@ -17,17 +23,19 @@ public:
   int pos;              //
   int leftPos;          //
   int rightPos;         //
-  int isDummy;          //
+  int isDummy;          // 1 if dummy, 0 otherwise
   int level;            //
 
-  // default constructor
+  // Default constructor
   node()
       : key(""), value({0, 0}), height(0), leftHeight(0), rightHeight(0),
         leftKey(""), rightKey(""), pos(0), leftPos(-1), rightPos(-1), isDummy(0), level(0)
   {
   }
 
-  node(string key, pair<int, int> value, int height, int leftHeight, int rightHeight, string leftKey, string rightKey, int pos, int leftPos, int rightPos, int isDummy, int level)
+  // Parameterized constructor
+  node(string key, pair<int, int> value, int height, int leftHeight, int rightHeight,
+       string leftKey, string rightKey, int pos, int leftPos, int rightPos, int isDummy, int level)
   {
     this->key = key;
     this->value = value;
@@ -40,14 +48,12 @@ public:
     this->leftPos = leftPos;
     this->rightPos = rightPos;
     this->isDummy = isDummy;
-    this->level = 0;
+    this->level = level;
   }
 
-  // to print the node => just for debugging
+  // For debugging: print the node
   void printNode()
   {
-    // print all fields of the node
-    // print in diff lines
     cout << "Key: " << key << endl;
     cout << "Value: {" << value.first << "," << value.second << "}" << endl;
     cout << "Height: " << height << endl;
@@ -61,4 +67,26 @@ public:
     cout << "Is Dummy: " << isDummy << endl;
     cout << "Level: " << level << endl;
   }
+
+private:
+  // Boost Serialization support
+  friend class boost::serialization::access;
+  template <class Archive>
+  void serialize(Archive &ar, const unsigned int /*version*/)
+  {
+    ar & key;
+    ar & value;
+    ar & height;
+    ar & leftHeight;
+    ar & rightHeight;
+    ar & leftKey;
+    ar & rightKey;
+    ar & pos;
+    ar & leftPos;
+    ar & rightPos;
+    ar & isDummy;
+    ar & level;
+  }
 };
+
+#endif // NODE_H
